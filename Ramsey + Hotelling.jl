@@ -20,31 +20,24 @@ function f(k::Float64,e::Float64, α::Float64, A::Float64)
 end
 
 function f_prime_k(k::Float64,e::Float64, α::Float64, A::Float64)
-    return α * A * k^(α-1) * e^(1-α)
-    
+    return α * A * k^(α-1) * e^(1-α)  
 end
 
 function f_prime_e(k::Float64,e::Float64, α::Float64, A::Float64)
     return (1-α) * A * k^α * e^(-α)
 end
 
-# Define the function to compute next capital, consumption, and efficiency
-function next_val(k::Float64, e::Float64, c::Float64, params::NamedTuple)
-    α = params.α
-    A = params.A
-    δ = params.δ
-    β = params.β
-    σ = params.σ
+function next(k::Float64, c::Float64, e::Float64, params)
+    # Unpack parameters
+    β, δ, α, σ, A = params.β, params.δ, params.α,params.σ, params.A
+    
+    k_next = f(k,e, params.α, params.A) + (1-params.δ)*k - c
 
-    # Calculate next capital (state transition law)
-    k_next = f(k, e, α, A) + (1 - δ) * k - c
-
-    # Function to solve the system using the Euler equation
     function equations!(E, x)
         c_next = x[1]
         e_next = x[2]
         
-        E[1] = u_prime(c, σ) - β * u_prime(c_next, σ) * (f_prime_k(k, e_next, α, A) + (1 - δ))
+        E[1] = u_prime(c, σ) - β * u_prime(c_next, σ) * (f_prime_k(k_next, e_next, α, A) + (1 - δ))
         E[2] = β * u_prime(c_next, σ) / u_prime(c, σ) * f_prime_e(k_next, e_next, α, A) / f_prime_e(k, e, α, A) - 1
     end
     
@@ -56,157 +49,139 @@ function next_val(k::Float64, e::Float64, c::Float64, params::NamedTuple)
     return k_next, c_next, e_next
 end
 
-# Shooting method to compute consumption and capital paths for T periods
-function shooting(k0::Float64, c0::Float64, e0::Float64, params::NamedTuple, T::Int)
-    β = params.β
-    σ = params.σ
-    δ = params.δ
-    α = params.α
-    A = params.A
-    R = params.R
-
-    c_path = [c0]
+function shooting(k0::Float64, c0::Float64, e0::Float64, T::Int, params)
+    # Unpack parameters
+    β, δ, α, σ, A = params.β, params.δ, params.α,params.σ, params.A
+    
+    # Initialize arrays to store the paths
+    k_path = zeros(T+1)
+    c_path = zeros(T)
+    e_path = zeros(T)
+    
+    # Set initial values
     k_path = [k0]
+    c_path = [c0]
     e_path = [e0]
-
+    
+    # Iterate forward
     for i in 1:T
         c = c_path[end]
         k = k_path[end]
         e = e_path[end]
         
-        k_next, c_next, e_next = next_val(k, e, c, params)
+        k_next, c_next, e_next = next(k, c, e, params)
 
         push!(c_path, c_next)
         push!(k_path, k_next)
         push!(e_path, e_next)
     end
-
-    return c_path, k_path, e_path
+    return k_path, c_path, e_path
 end
 
-shooting(1.1, 0.1, 0.1, params, 50)
+function energy_newton(k0::Float64, c0::Float64, params::NamedTuple, T::Int ; tol = 1e-6, max_iter = 1000)
+    e = k0
 
-using Base.Threads: @async, sleep
-function energy_optimal(k0::Float64, c0::Float64, e0::Float64, params::NamedTuple, T::Int ; tol = 1e-6, max_iter = 1000)
-    β = params.β
-    σ = params.σ
-    δ = params.δ
-    α = params.α
-    A = params.A
-    R = params.R
-    i = 0
-    e_upp = R
-    e_low = 0.0
-    e = e0
-
-    timeout = 1.0  # Timeout in seconds
-    start_time = time()
-    elapsed_time = 0.0
-
-    while i < max_iter
-        elapsed_time = time() - start_time
-        if elapsed_time > timeout
-            println("Timeout: Function took longer than $timeout seconds at iteration $i.")
-            return nothing
-        end
-
-        result = try
-            shooting(k0, c0, e, params, T)
-        catch ex
-            if isa(ex, DomainError)
-                e_upp = e
-                e = (e_upp + e_low) / 2
-                continue
+    function f(e)
+        k_path, c_path, e_path = shooting(k0, c0, e, T, params)
+        try
+            k_path, c_path, e_path = shooting(k0, c0, e, T, params)
+        catch err
+            if err isa DomainError
+            e *= 1.1
+            while true
+                try
+                    k_path, c_path, e_path = shooting(k0, c0, e, T, params)
+                    break
+                catch err
+                    if err isa DomainError
+                        e *= 2
+                    else
+                        rethrow(err)
+                    end
+                end
+            end
+            return f(e)
             else
-                rethrow(ex)
+            rethrow(err)
             end
         end
-
-        if result === nothing
-            e_upp = e
-            e = (e_upp + e_low) / 2
-            continue
-        end
-
-        c_vec, k_vec, e_vec = result
-        e_cons = sum(e_vec)
-
-        if e_cons > R
-            e_upp = e
-        else
-            e_low = e
-        end
-        e = (e_upp + e_low) / 2
-        i += 1
+        return sum(e_path) - params.R
     end
+
+    # Differentiate f(e)
+    function Df(e)
+        h = 1e-6
+        return (f(e + h) - f(e)) / h        
+    end
+
+    # Apply Newton's method
+    for i in 1:max_iter
+        e = e - f(e) / Df(e)
+        if abs(f(e)) < tol
+            println("Newton's method has converged after $i iterations.")
+            return e
+        end
+        println("Iteration $i: e = $e, f(e) = $(f(e))")
+    end
+    
+    println("Newton's method did not converge after $max_iter iterations.")
     return e
 end
 
-
-# Initial values
-function bisection(k0::Float64, c0::Float64, params::NamedTuple, T::Int ; tol = 1e-6, max_iter = 1000)
-    c = c0
-    c_upp = f(k0, energy_optimal(k0, c, 0.1, params, T), params.α, params.A) + (1 - params.δ) * k0
+function bisection(k0::Float64, c0::Float64,params::NamedTuple, T::Int64 ; tol = 1e-6, max_iter::Int64 = 1000)
+    e = energy_newton(k0,c0,params,T)
+    c_upp = f(k0, e, params.α, params.A) + (1-params.δ)*k0
     c_low = 0.0
-    
+    c = c0
     i = 0
 
-    timeout = 300.0  # Timeout in seconds (5 minutes)
-    start_time = time()
-    elapsed_time = 0.0
-
     while i < max_iter
-        elapsed_time = time() - start_time
-        if elapsed_time > timeout
-            println("Timeout: Function took longer than $timeout seconds at iteration $i.")
-            println("Current result: c = $c")
-            return c
-        end
-
-        e_opt = energy_optimal(k0, c, 0.1, params, T)
-        if e_opt === nothing
-            c_upp = c
-            c = (c_upp + c_low) / 2
-            continue
-        end
-
-        e = e_opt
-
-        result = try
-            shooting(k0, c, e, params, T)
-        catch ex
-            if isa(ex, DomainError)
+        try
+            k_path = shooting(k0, c, energy_newton(k0, c, params, T), T, params)[1]
+        catch e
+            if e isa DomainError
                 c_upp = c
                 c = (c_upp + c_low) / 2
+                i += 1
                 continue
             else
-                rethrow(ex)
+                rethrow(e)
             end
         end
 
-        if result === nothing
-            c_upp = c
-            c = (c_upp + c_low) / 2
-            continue
-        end
-
-        c_vec, k_vec, e_vec = result
-        error = u_prime(c_vec[end], params.σ) - params.β * u_prime(c_vec[end-1], params.σ) * (1 + f_prime_k(k_vec[end-1], e_vec[end-1], params.α, params.A) - params.δ)
+        k_path = shooting(k0, c, energy_newton(k0, c, params, T), T, params)[1]
+        error = k_path[end]
 
         if abs(error) < tol
             return c
         elseif error > 0
             c_low = c
         else
-            c_upp = c
+            c_upp = c    
         end
         c = (c_upp + c_low) / 2
         i += 1
+
+        if i == max_iter
+            println("Bisection method did not converge after $max_iter iterations.")
+        end
     end
     return c
 end
 
+k0 = 1.1
+c_opt = bisection(k0,0.1*k0,params,100)
+e_opt = energy_newton(k0,c_opt,params,100)
 
-plot(shooting(1.1, bisection(1.1, 0.1, params, 100), 0.1, params, 100)[1], label="Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Consumption Path")
-plot(shooting(1.1, bisection(1.1, 0.1, params, 100), 0.1, params, 100)[2], label="Capital", lw=2, color="red", xlabel="Time", ylabel="Capital", title="Capital Path")
-plot(shooting(1.1, bisection(1.1, 0.1, params, 100), 0.1, params, 100)[3], label="Efficiency", lw=2, color="green", xlabel="Time", ylabel="Efficiency", title="Efficiency Path")
+k_path, c_path, e_path = shooting(1.1, c_opt, e_opt, 100, params)
+
+function plot_all(k_path::Vector, c_path::Vector,e_path::Vector)
+    p1 = plot(1:length(k_path), k_path, label = "Capital", title = "Capital Path", color = :blue)
+    p2 = plot(1:length(c_path), c_path, label = "Consumption", title = "Consumption Path", color = :green)
+    p3 = plot(1:length(e_path), e_path, label = "Energy", title = "Energy Path", color = :red)
+    plot(p1, p2, p3, layout = (3, 1), legend = :topright)
+end
+
+plot_all(k_path, c_path, e_path)
+sum(e_path)
+e_grw = [e_path[i+1]/e_path[i] for i in 1:length(e_path)-1]

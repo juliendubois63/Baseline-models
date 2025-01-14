@@ -148,7 +148,7 @@ function bisection_inf(c0::Float64, k0::Float64, T::Int, model::RamseyModel; tol
         end
 
         c_vec, k_vec = result
-        error = model.u_prime(c_vec[end], model.params.σ) - model.params.β * model.u_prime(c_vec[end-1], model.params.σ) * (1 + model.f_prime(k_vec[end-1], model.params.α, model.params.A) - model.params.δ) # Ensure TVC
+        error = model.u_prime(c_vec[end], model.params.σ) - model.params.β * model.u_prime(c_vec[end-1], model.params.σ) * (1 + model.f_prime(k_vec[end-1], model.params.α) - model.params.δ) # Ensure TVC
 
         if abs(error) < tol
             return c0
@@ -170,22 +170,9 @@ function compute_tech_adjusted_paths(c0::Float64, k0::Float64, T::Int, model::Ra
     A = model.params.A
     k_adj_vec = [k_vec[i] * A^i for i in 1:length(k_vec)]
 
-    c_adj_vec = zeros(Float64, length(c_vec))
-
-    for i in 1:length(c_vec)-1
-        c_adj_vec[i] = model.f(k_adj_vec[i], model.params.α) + (1 - model.params.δ) * k_adj_vec[i] - k_adj_vec[i+1]
-    end
+    c_adj_vec = [c_vec[i] * A^i for i in 1:length(c_vec)]
 
     return k_adj_vec, c_adj_vec
-end
-
-function plot_all_paths(c_vec, k_vec, k_adj_vec, c_adj_vec, T::Int)
-    p1 = plot(1:T+1, c_vec, label="Consumption", xlabel="Time", ylabel="Value", title="Consumption (Non-Adjusted)", color="blue")
-    p2 = plot(1:T+1, k_vec[1:end-1], label="Capital", xlabel="Time", ylabel="Value", title="Capital (Non-Adjusted)", color="red")
-    p3 = plot(1:T, c_adj_vec[1:T], label="Adjusted Consumption", xlabel="Time", ylabel="Value", title="Adjusted Consumption", color="blue")
-    p4 = plot(1:T+1, k_adj_vec[1:end-1], label="Adjusted Capital", xlabel="Time", ylabel="Value", title="Adjusted Capital", color="red")
-
-    plot(p1, p2, p3, p4, layout=(2, 2))
 end
 
 # Initial values
@@ -193,19 +180,27 @@ c0 = 0.1
 k0 = 1.0
 T = 100
 
-# Compute paths
+# Compute paths for infinite time
 c_opt = bisection_inf(c0, k0, T, model)
 c_vec, k_vec = shooting(c_opt, k0, T, model)
 k_adj_vec, c_adj_vec = compute_tech_adjusted_paths(c0, k0, T, model)
 
-# Plot all paths in a 2x2 layout
-plot_all_paths(c_vec, k_vec, k_adj_vec, c_adj_vec, T)
 # Compute paths for finite time
 c_opt_finite = bisection(c0, k0, T, model)
 c_vec_finite, k_vec_finite = shooting(c_opt_finite, k0, T, model)
+c_adj_vec_finite, k_adj_vec_finite = [c_vec_finite[i]*params.A^i for i in 1:length(c_vec_finite)], [k_vec_finite[i]*params.A^i for i in 1:length(k_vec_finite)]
+
+function plot_all_paths(c_vec, k_vec, c_adj_vec, k_adj_vec)
+    p1 = plot(1:length(c_vec), c_vec, label="Consumption", xlabel="Time", ylabel="Value", title="Consumption (Non-Adjusted)", color="blue")
+    p2 = plot(1:length(k_vec), k_vec, label="Capital", xlabel="Time", ylabel="Value", title="Capital (Non-Adjusted)", color="red")
+    p3 = plot(1:length(c_adj_vec), c_adj_vec, label="Adjusted Consumption", xlabel="Time", ylabel="Value", title="Adjusted Consumption", color="blue")
+    p4 = plot(1:length(k_adj_vec), k_adj_vec, label="Adjusted Capital", xlabel="Time", ylabel="Value", title="Adjusted Capital", color="red")
+
+    plot(p1, p2, p3, p4, layout=(2, 2))
+end
 
 # Plot all paths in a 2x2 layout for infinite time
-plot_all_paths(c_vec, k_vec, k_adj_vec, c_adj_vec, T)
+plot_all_paths(c_vec, k_vec, c_adj_vec, k_adj_vec)
 
 # Plot all paths in a 2x2 layout for finite time
-plot_all_paths(c_vec_finite, k_vec_finite, k_vec_finite, c_vec_finite, T)
+plot_all_paths(c_vec_finite, k_vec_finite, c_adj_vec_finite, k_adj_vec_finite)

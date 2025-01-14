@@ -3,13 +3,11 @@ using Plots
 
 params = (; σ = 1.0,    # Coefficient of relative risk aversion
                β = 0.95,   # Discount factor
-               δ = 1,   # Depreciation rate
+               δ = 0.02,   # Depreciation rate
                α = 0.33,    # Capital share
                A = 1.09,    # Total factor productivity
                R = 10)             
 
-               
-               
 # Create a new params with the updated β value
 params = (; params..., β = params.β / (params.A^(1 - params.σ)))
 
@@ -87,8 +85,7 @@ function shooting(k0::Float64, c0::Float64, e0::Float64, params::NamedTuple, T::
     return c_path, k_path, e_path
 end
 
-#Multivariate Newton-Raphson method : 
-# Newton-Raphson method to find optimal c0 and e0
+# Multivariate Newton-Raphson method
 function norm(x::Vector{Float64})
     return sqrt(sum(xi^2 for xi in x))
 end
@@ -142,7 +139,6 @@ function newton_raphson(k0::Float64, c0::Float64, e0::Float64, params::NamedTupl
         Δx = -J \ res
         x += Δx
         if norm(Δx) < tol
-            println("Converged in $i iterations with res = $res")
             return x
         end
         if i % 25 == 0
@@ -170,43 +166,16 @@ end
 # Adjust the paths
 c_adj, k_adj, e_adj = adjust_paths(c_path, k_path, e_path, params.A)
 
-# Function to plot the original and adjusted paths
+# Function to plot the paths
 function plot_paths(c_path, k_path, e_path, c_adj, k_adj, e_adj)
     plot(layout = (3, 2))
     plot!(c_path, label="Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Intensive Consumption Path", subplot=1)
-    plot!(c_adj, label="Adjusted Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Adjusted Consumption Path", subplot=2)
     plot!(k_path, label="Capital", lw=2, color="red", xlabel="Time", ylabel="Capital", title="Intensive Capital Path", subplot=3)
-    plot!(k_adj, label="Adjusted Capital", lw=2, color="red", xlabel="Time", ylabel="Capital", title="Adjusted Capital Path", subplot=4)
     plot!(e_path, label="Energy", lw=2, color="green", xlabel="Time", ylabel="Energy", title="Intensive Energy Path", subplot=5)
+    plot!(c_adj, label="Adjusted Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Adjusted Consumption Path", subplot=2)
+    plot!(k_adj, label="Adjusted Capital", lw=2, color="red", xlabel="Time", ylabel="Capital", title="Adjusted Capital Path", subplot=4)
     plot!(e_adj, label="Adjusted Energy", lw=2, color="green", xlabel="Time", ylabel="Energy", title="Adjusted Energy Path", subplot=6)
 end
 
 # Plot the paths
 plot_paths(c_path, k_path, e_path, c_adj, k_adj, e_adj)
-
-
-# Function to compute the growth rates of the paths
-function compute_growth_rates(c_path, k_path, e_path)
-    T = length(c_path)
-    c_growth = [(c_path[i+1] / c_path[i]) for i in 1:T-1]
-    k_growth = [(k_path[i+1] / k_path[i]) for i in 1:T-1]
-    e_growth = [(e_path[i+1] / e_path[i]) for i in 1:T-1]
-    return c_growth, k_growth, e_growth
-end
-
-# Compute the growth rates for adjusted paths
-c_growth_adj, k_growth_adj, e_growth_adj = compute_growth_rates(c_adj, k_adj, e_adj)
-
-# Function to plot the growth rates
-function plot_growth_rates(c_growth, k_growth, e_growth, c_growth_adj, k_growth_adj, e_growth_adj)
-    plot(layout = (3, 2), legend=false, size=(800, 600))
-    plot!(c_growth, lw=2, color="blue", xlabel="Time", ylabel="Growth Rate", title="Consumption Growth Rate", subplot=1)
-    plot!(c_growth_adj, lw=2, color="cyan", xlabel="Time", ylabel="Growth Rate", subplot=2)
-    plot!(k_growth, lw=2, color="red", xlabel="Time", ylabel="Growth Rate", title="Capital Growth Rate", subplot=3)
-    plot!(k_growth_adj, lw=2, color="orange", xlabel="Time", ylabel="Growth Rate", subplot=4)
-    plot!(e_growth, lw=2, color="green", xlabel="Time", ylabel="Growth Rate", title="Energy Growth Rate", subplot=5)
-    plot!(e_growth_adj, lw=2, color="lime", xlabel="Time", ylabel="Growth Rate", subplot=6)
-end
-
-# Plot the growth rates
-plot_growth_rates(c_growth, k_growth, e_growth, c_growth_adj, k_growth_adj, e_growth_adj)

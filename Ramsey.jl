@@ -91,11 +91,6 @@ function shooting(c0::Float64, k0::Float64, T::Int, model::RamseyModel)
     return c_vec, k_vec
 end
 
-c_vec, k_vec = shooting(0.2, 0.3, 10, model)
-test_c = plot(c_vec, label="Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Consumption Path")
-test_k = plot(k_vec, label="Capital", lw=2, color="red", xlabel="Time", ylabel="Capital", title="Capital Path")
-combined_plot = plot(test_c, test_k, layout=(1, 2), size=(800, 400))
-
 # Bisection method to find the optimal consumption path
 function bisection(c0::Float64, k0::Float64, T::Int, model::RamseyModel; tol::Float64 = 1e-6, max_iter::Int = 1000)
     c_upp = model.f(k0, model.params.α, model.params.A) + (1 - model.params.δ) * k0 
@@ -137,10 +132,6 @@ function bisection(c0::Float64, k0::Float64, T::Int, model::RamseyModel; tol::Fl
     return c0
 end
 
-optimal_c0 = bisection(0.3, 0.3, 100, model)
-c_vec, k_vec = shooting(optimal_c0, 0.3, 100, model)
-consumption_plot = plot(c_vec, label="Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Consumption Path")
-
 function compute_paths(model::RamseyModel, k0::Float64, T_arr::Vector{Int}, c0::Float64)
     c_paths = []
     k_paths = []
@@ -168,47 +159,28 @@ end
 # Compute the optimal consumption, capital, and Lagrange multiplier paths
 c_paths, k_paths, lagrange_paths = compute_paths(model, 2.3, [100, 150, 200], 1.6)
 
-# Plot the computed paths on the same graph
-p1 = plot(title="Consumption Paths", xlabel="Time", ylabel="Consumption")
-for i in 1:length(c_paths)
-    plot!(p1, c_paths[i])
+function plot_paths(c_paths, k_paths, lagrange_paths)
+    # Plot the computed paths on the same graph
+    p1 = plot(title="Consumption Paths", xlabel="Time", ylabel="Consumption")
+    for i in 1:length(c_paths)
+        plot!(p1, c_paths[i])
+    end
+
+    p2 = plot(title="Capital Paths", xlabel="Time", ylabel="Capital")
+    for i in 1:length(k_paths)
+        plot!(p2, k_paths[i])
+    end
+
+    p3 = plot(title="Lagrange Multiplier Paths", xlabel="Time", ylabel="Lagrange Multiplier")
+    for i in 1:length(lagrange_paths)
+        plot!(p3, lagrange_paths[i])
+    end
+
+    combined_plot = plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
+    return combined_plot
 end
 
-p2 = plot(title="Capital Paths", xlabel="Time", ylabel="Capital")
-for i in 1:length(k_paths)
-    plot!(p2, k_paths[i])
-end
-
-p3 = plot(title="Lagrange Multiplier Paths", xlabel="Time", ylabel="Lagrange Multiplier")
-for i in 1:length(lagrange_paths)
-    plot!(p3, lagrange_paths[i])
-end
-
-combined_plot_2 = plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
-
-# Case with steady state :
-ρ = 1/model.params.β - 1
-k_ss = f_prime_inv(ρ + model.params.δ, model.params.α, model.params.A)
-
-c_paths, k_paths, lagrange_paths = compute_paths(model, k_ss, [100], 0.3)
-
-# Plot the computed paths on the same graph
-p1 = plot(title="Consumption Paths", xlabel="Time", ylabel="Consumption")
-for i in 1:length(c_paths)
-    plot!(p1, c_paths[i])
-end
-
-p2 = plot(title="Capital Paths", xlabel="Time", ylabel="Capital")
-for i in 1:length(k_paths)
-    plot!(p2, k_paths[i])
-end
-
-p3 = plot(title="Lagrange Multiplier Paths", xlabel="Time", ylabel="Lagrange Multiplier")
-for i in 1:length(lagrange_paths)
-    plot!(p3, lagrange_paths[i])
-end
-
-combined_plot_3 = plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
+combined_plot = plot_paths(c_paths, k_paths, lagrange_paths)
 
 # Compute saving rate given the path of consumption
 function saving_rate(model::RamseyModel, c_path::Vector{Float64}, k_path::Vector{Float64})
@@ -267,10 +239,6 @@ function bisection_inf(c0::Float64, k0::Float64, T::Int, model::RamseyModel; tol
     return c0
 end
 
-optimal_c0_inf = bisection_inf(0.3, 0.3, 200, model)
-c_vec_inf, k_vec_inf = shooting(optimal_c0_inf, 0.3, 200, model)
-consumption_plot_inf = plot(c_vec_inf, label="Consumption", lw=2, color="blue", xlabel="Time", ylabel="Consumption", title="Consumption Path")
-
 function compute_paths_inf(model::RamseyModel, k0::Float64, T_arr::Vector{Int}, c0::Float64)
     c_paths = []
     k_paths = []
@@ -297,20 +265,4 @@ end
 # Compute the optimal consumption, capital, and Lagrange multiplier paths
 c_paths, k_paths, lagrange_paths = compute_paths_inf(model, k_ss/3, [50,150,200], 0.3)
 
-# Plot the computed paths on the same graph
-p1 = plot(title="Consumption Paths", xlabel="Time", ylabel="Consumption")
-for i in 1:length(c_paths)
-    plot!(p1, c_paths[i])
-end
-
-p2 = plot(title="Capital Paths", xlabel="Time", ylabel="Capital")
-for i in 1:length(k_paths)
-    plot!(p2, k_paths[i])
-end
-
-p3 = plot(title="Lagrange Multiplier Paths", xlabel="Time", ylabel="Lagrange Multiplier")
-for i in 1:length(lagrange_paths)
-    plot!(p3, lagrange_paths[i])
-end
-
-combined_plot_inf = plot(p1, p2, p3, layout=(1, 3), size=(1200, 400))
+combined_plot_inf = plot_paths(c_paths, k_paths, lagrange_paths)
