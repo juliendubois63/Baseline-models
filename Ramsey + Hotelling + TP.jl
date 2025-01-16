@@ -38,7 +38,7 @@ function next_val(k::Float64, e::Float64, c::Float64, params::NamedTuple)
     σ = params.σ
 
     # Calculate next capital (state transition law)
-    k_next = f(k, e, α) + (1 - δ) * k - c
+    k_next = (f(k, e, α) + (1 - δ) * k - c)*(1/A)
 
     # Function to solve the system using the Euler equation
     function equations!(E, x)
@@ -106,7 +106,7 @@ function newton_raphson(k0::Float64, c0::Float64, e0::Float64, params::NamedTupl
         end
 
         c_vec, k_vec, e_vec = result
-        e_cons = sum(e_vec[i] / A^(i-1) for i in 1:T)
+        e_cons = sum(e_vec[i] / A^(i) for i in 1:T)
         k_ter = β^T * u_prime(c_vec[end], σ) * k_vec[end]
         return [e_cons - R, k_ter]
     end
@@ -157,9 +157,9 @@ c_path, k_path, e_path = shooting(1.1, guess[1], guess[2], params, 100)
 # Adjust the paths by multiplying consumption and capital by A^i and dividing efficiency by A^i
 function adjust_paths(c_path, k_path, e_path, A)
     T = length(c_path)
-    c_adj = [c_path[i] * A^(i-1) for i in 1:T]
-    k_adj = [k_path[i] * A^(i-1) for i in 1:T]
-    e_adj = [e_path[i] / A^(i-1) for i in 1:T]
+    c_adj = [c_path[i] * A^(i) for i in 1:T]
+    k_adj = [k_path[i] * A^(i) for i in 1:T]
+    e_adj = [e_path[i] / A^(i) for i in 1:T]
     return c_adj, k_adj, e_adj
 end
 
