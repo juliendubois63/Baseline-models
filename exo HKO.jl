@@ -5,6 +5,8 @@ using DataFrames
 using ForwardDiff
 using TimerOutputs
 
+
+#newline
 params = (; σ = 1.0,    # Coefficient of relative risk aversion
                β = 0.985,   # Discount factor
                δ = 0.02,   # Depreciation rate
@@ -305,7 +307,6 @@ function test_shooting_errors_and_plot(params::NamedTuple, horizons::Vector{Int}
     println(error_summary)
 end
 
-
 # Example usage
 horizons = [10, 20, 25, 50]
 num_trials = 100
@@ -422,7 +423,6 @@ e0 = 0.2
 guess = newton_raphson(k0, c0, c0, params, T)
 # Get the original paths
 c_path, k_path, e_path = shooting(k0, guess[1], guess[2], params, T)
-
 
 # Adjust the paths by multiplying consumption and capital by A^i and dividing efficiency by A^i
 function adjust_paths(c_path, k_path, e_path, params)
