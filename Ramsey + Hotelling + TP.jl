@@ -45,7 +45,7 @@ function next_val(k::Float64, e::Float64, c::Float64, params::NamedTuple)
         c_next = x[1]
         e_next = x[2]
         
-        E[1] = u_prime(c, σ) - β * u_prime(c_next, σ) * (f_prime_k(k, e_next, α) + (1 - δ))
+        E[1] = u_prime(c, σ) - β * u_prime(c_next, σ) * (f_prime_k(k_next, e_next, α) + (1 - δ))
         E[2] = β * u_prime(c_next, σ) / u_prime(c, σ) * f_prime_e(k_next, e_next, α) / f_prime_e(k, e, α) - 1
     end
     
